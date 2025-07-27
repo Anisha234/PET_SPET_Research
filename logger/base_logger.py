@@ -72,11 +72,16 @@ class BaseLogger(object):
             ax.set_ylim([0.0, 1.05])
             ax.set_xlim([0.0, 1.0])
 
-            fig.canvas.draw()
+            rgba = np.asarray(fig.canvas.buffer_rgba())
+            rgb_hwc = rgba[..., :3]
 
-            curve_img = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-            curve_img = curve_img.reshape((3,) + fig.canvas.get_width_height()[::-1])
-            self.summary_writer.add_image(name.replace('_', '/'), curve_img, global_step=self.global_step)
+           # convert to C×H×W
+            rgb_chw = np.transpose(rgb_hwc, (2, 0, 1))
+
+            plt.close(fig)  # Clean up the figure
+            #curve_img = np.fromstring(fig.canvas.get_renderer().tostring_rgb(), dtype=np.uint8, sep='')
+            #curve_img = curve_img.reshape((3,) + fig.canvas.get_width_height()[::-1])
+            self.summary_writer.add_image(name.replace('_', '/'), rgb_chw, global_step=self.global_step)
 
     def visualize(self, inputs, cls_logits, targets_dict, phase, unique_id=None):
         """Visualize predictions and targets in TensorBoard.

@@ -12,7 +12,7 @@ from .output_aggregator import OutputAggregator
 class ModelEvaluator(object):
     """Class for evaluating a model during training."""
 
-    def __init__(self, do_classify, dataset_name, data_loaders, logger,
+    def __init__(self, do_classify, dataset_name, data_loaders, logger,predict_num_slices=False,
                  agg_method=None, num_visuals=None, max_eval=None, epochs_per_eval=1):
         """
         Args:
@@ -29,9 +29,13 @@ class ModelEvaluator(object):
         self.data_loaders = data_loaders
         self.dataset_name = dataset_name
         self.do_classify = do_classify
+        self.predict_num_slices = predict_num_slices
         self.epochs_per_eval = epochs_per_eval
         self.logger = logger
-        self.cls_loss_fn = None if not do_classify else util.optim_util.get_loss_fn(is_classification=True, dataset=dataset_name)
+        if self.predict_num_slices:
+            self.cls_loss_fn = torch.nn.L1Loss()
+        else:        
+            self.cls_loss_fn = None if not do_classify else util.optim_util.get_loss_fn(is_classification=True, dataset=dataset_name)
         self.seg_loss_fn = util.optim_util.get_loss_fn(is_classification=False, dataset=dataset_name)
         self.num_visuals = num_visuals
         self.max_eval = None if max_eval is None or max_eval < 0 else max_eval
@@ -90,11 +94,14 @@ class ModelEvaluator(object):
             for inputs, targets_dict in data_loader:
                 if num_evaluated >= num_examples:
                     break
-
-                with torch.no_grad():
-                    cls_logits = model.forward(inputs.to(device))
-                    cls_targets = targets_dict['is_abnormal']
-                    loss = self.cls_loss_fn(cls_logits, cls_targets.to(device))
+                with torch.autocast(device_type=device, dtype=torch.float16, enabled=True):
+                    with torch.no_grad():
+                        cls_logits,_ = model.forward(inputs.to(device))
+                        if self.predict_num_slices:
+                            cls_targets = targets_dict['num_abnormal']
+                        else:
+                            cls_targets = targets_dict['is_abnormal']
+                        loss = self.cls_loss_fn(cls_logits, cls_targets.to(device))
 
                 self._record_batch(cls_logits, targets_dict['series_idx'], loss, **records)
 

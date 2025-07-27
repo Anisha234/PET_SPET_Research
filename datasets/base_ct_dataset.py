@@ -1,6 +1,6 @@
 import numpy as np
 import random
-
+import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -83,6 +83,8 @@ class BaseCTDataset(Dataset):
         
         return np_block
 
+
+
     def _normalize_raw(self, pixels):
         """Normalize an ndarray of raw Hounsfield Units to [-1, 1].
 
@@ -107,4 +109,42 @@ class BaseCTDataset(Dataset):
 
         pixels = np.clip(pixels, 0., 1.) - self.pixel_dict['avg_val']
 
+        if self.scale_by_std:
+            pixels = pixels/self.pixel_dict['std_val']
         return pixels
+
+    def _normalize_raw2(self, pixels: torch.Tensor) -> torch.Tensor:
+        """
+        Normalize a torch.Tensor of raw Hounsfield Units to approximately [-1, 1]:
+        1) Clip to [min_val, max_val]
+        2) Scale into [0,1]
+        3) Subtract avg_val
+        4) (Optionally) divide by std_val
+
+        Args:
+            pixels: torch.Tensor of any shape, dtype float or int.
+
+        Returns:
+            torch.Tensor, same shape, dtype float32.
+        """
+        # ensure float32
+        x = pixels.to(torch.float32)
+
+        # 1) scale to [0,1]
+        min_val = float(self.pixel_dict['min_val'])
+        max_val = float(self.pixel_dict['max_val'])
+        x = (x - min_val) / (max_val - min_val)
+
+        # 2) clip to [0,1]
+        x = torch.clamp(x, 0.0, 1.0)
+
+        # 3) zero-center around avg_val
+        avg_val = float(self.pixel_dict['avg_val'])
+        x = x - avg_val
+
+        # 4) optionally scale by std
+        if self.scale_by_std:
+            std_val = float(self.pixel_dict['std_val'])
+            x = x / std_val
+
+        return x

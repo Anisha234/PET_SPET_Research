@@ -57,6 +57,12 @@ class TrainArgParser(BaseArgParser):
                                  help='If true, do random vertical flip during training.')
         self.parser.add_argument('--do_rotate', type=util.str_to_bool, default=True,
                                  help='If true, do random rotation (up to +/- 15 degrees) of the scan during training.')
+        self.parser.add_argument('--do_contrast', type=util.str_to_bool, default=False,
+                                 help='If true, do random rotation (up to +/- 15 degrees) of the scan during training.')
+        self.parser.add_argument('--do_brightness', type=util.str_to_bool, default=False,
+                                 help='If true, do random rotation (up to +/- 15 degrees) of the scan during training.') 
+        self.parser.add_argument('--do_affine', type=util.str_to_bool, default=False,
+                                 help='If true, do random rotation (up to +/- 15 degrees) of the scan during training.')
         self.parser.add_argument('--do_jitter', type=util.str_to_bool, default=True,
                                  help='If true, do random jitter of starting slices during training.')
         self.parser.add_argument('--do_center_pe', type=util.str_to_bool, default=True,

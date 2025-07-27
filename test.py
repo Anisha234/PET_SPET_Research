@@ -7,7 +7,7 @@ import sklearn.metrics as sk_metrics
 import torch
 import torch.nn.functional as F
 import util
-
+import pandas as pd
 from args import TestArgParser
 from data_loader import CTDataLoader
 from collections import defaultdict
@@ -36,37 +36,68 @@ def test(args):
 
     # Get model outputs, log to TensorBoard, write masks to disk window-by-window
     util.print_err('Writing model outputs to {}...'.format(args.results_dir))
+    patient_list = []
+    patient_slice = []
+    patient_prob = []
+    patient_label = []
+    patient_emb = []
+    result_dict ={}
     with tqdm(total=len(data_loader.dataset), unit=' windows') as progress_bar:
         for i, (inputs, targets_dict) in enumerate(data_loader):
             means.append(inputs.mean().item())
-            with torch.no_grad():
-                cls_logits = model.forward(inputs.to(args.device))
-                cls_probs = F.sigmoid(cls_logits)
+            with torch.autocast(device_type=args.device, dtype=torch.float16, enabled=True):
+                with torch.no_grad():
+                    cls_logits,emb = model.forward(inputs.to(args.device))
+                    if args.predict_num_slices:
+                        cls_probs = torch.clip(cls_logits, 0, 1)
+                    else:
+                        cls_probs = F.sigmoid(cls_logits)
 
             if args.visualize_all:
                 logger.visualize(inputs, cls_logits, targets_dict=None, phase=args.phase, unique_id=i)
 
             max_probs = cls_probs.to('cpu').numpy()
+            emb = emb.to('cpu').numpy()
+            cnt=0
             for study_num, slice_idx, prob in \
                     zip(targets_dict['study_num'], targets_dict['slice_idx'], list(max_probs)):
+                
                 # Convert to standard python data types
                 study_num = int(study_num)
                 slice_idx = int(slice_idx)
-
+           
                 # Save series num for aggregation
                 study2slices[study_num].append(slice_idx)
                 study2probs[study_num].append(prob.item())
 
                 series = data_loader.get_series(study_num)
                 if study_num not in study2labels:
-                    study2labels[study_num] = int(series.is_positive)
+                    study2labels[study_num] = int(series.is_positive) and (len(series.pe_idxs)>0)
+                patient_list.append(study_num)
+                patient_slice.append(slice_idx//args.num_slices)
+                patient_prob.append(prob.item())
+                patient_label.append(int(series.is_positive) and (len(series.pe_idxs) > 0))
+                patient_emb.append(emb[cnt,:])
+                cnt = cnt+1
 
             progress_bar.update(inputs.size(0))
-    
+    print(len(patient_emb),len(patient_list), patient_emb[0].shape)
+    result_dict = {'patient':patient_list, 'slice': patient_slice, 'prob':patient_prob, 'label':patient_label}
+    result_pkl = {'patient':patient_list, 'slice': patient_slice, 'prob':patient_prob, 'label':patient_label, 'emb':patient_emb}
+    #Save predictions to file, indexed by study number
+    print("Saving embeddings to embs.pickle")
+    with open('{}/embs.pickle'.format(args.results_dir),"wb") as fp:
+        pickle.dump(result_pkl,fp)
+
+    df = pd.DataFrame(result_dict)
+    df.to_csv('{}/test_results.csv'.format(args.results_dir))
     # Combine masks
     util.print_err('Combining masks...')
     max_probs = []
     labels = []
+    model_pred=[]
+
+    
     predictions = {}
     print("Get max probability")
     for study_num in tqdm(study2slices):
@@ -78,6 +109,7 @@ def test(args):
         study2probs[study_num] = prob_list
         max_prob = max(prob_list)
         max_probs.append(max_prob)
+        model_pred.append(max_prob>0.5)
         label = study2labels[study_num]
         labels.append(label)
         predictions[study_num] = {'label':label, 'pred':max_prob}
@@ -96,12 +128,18 @@ def test(args):
 
     # Compute AUROC and AUPRC using max aggregation, write to files
     max_probs, labels = np.array(max_probs), np.array(labels)
+    conf_mtx = sk_metrics.confusion_matrix(labels, model_pred)
     metrics = {
         args.phase + '_' + 'AUPRC': sk_metrics.average_precision_score(labels, max_probs),
         args.phase + '_' + 'AUROC': sk_metrics.roc_auc_score(labels, max_probs),
+        args.phase + '_' + 'cm[0,0]': conf_mtx[0,0],
+        args.phase + '_' + 'cm[0,1]': conf_mtx[0,1],
+        args.phase + '_' + 'cm[1,0]': conf_mtx[1,0],
+        args.phase + '_' + 'cm[1,1]': conf_mtx[1,1],
     }
     print("Write metrics")
     with open(os.path.join(args.results_dir, 'metrics.txt'), 'w') as metrics_fh:
+        metrics_fh.write(args.ckpt_path)
         for k, v in metrics.items():
             metrics_fh.write('{}: {:.5f}\n'.format(k, v))
 

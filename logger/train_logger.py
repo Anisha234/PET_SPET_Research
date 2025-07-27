@@ -97,7 +97,7 @@ class TrainLogger(BaseLogger):
         self.write('[end of epoch {}, epoch time: {:.2g}]'.format(self.epoch, time() - self.epoch_start_time))
         self._log_scalars(metrics)
 
-        self._plot_curves(curves)
+        #self._plot_curves(curves)
 
         self.epoch += 1
 

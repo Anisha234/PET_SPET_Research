@@ -13,9 +13,10 @@ class BaseArgParser(object):
     """Base argument parser for args shared between test and train modes."""
     def __init__(self):
         self.parser = argparse.ArgumentParser(description='PENet base args')
-        self.parser.add_argument('--model', type=str, choices=('PENet', 'PENetClassifier'), default='PENet',
+        self.parser.add_argument('--model', type=str, choices=('PENet', 'PENetClassifier','DinoClassifier','DinoTransformer'), default='PENet',
                                  help='Model to use. PENetClassifier or PENet.')
         self.parser.add_argument('--batch_size', type=int, default=6, help='Batch size.')
+        
         self.parser.add_argument('--ckpt_path', type=str, default='',
                                  help='Path to checkpoint to load. If empty, start from scratch.')
         self.parser.add_argument('--data_dir', type=str, required=True,
@@ -39,6 +40,8 @@ class BaseArgParser(object):
                                  help='Minimum number of slices with abnormality for window to be considered abnormal.')
         self.parser.add_argument('--num_channels', default=3, type=int, help='Number of channels in an image.')
         self.parser.add_argument('--num_classes', default=1, type=int, help='Number of classes to predict.')
+        self.parser.add_argument('--num_layers', type=int, default=4,
+                                 help='num layers for dino transformer')
         self.parser.add_argument('--num_slices', default=32, type=int, help='Number of slices to use per study.')
         self.parser.add_argument('--num_visuals', type=int, default=4,
                                  help='Maximum number of visuals per evaluation.')
@@ -52,15 +55,18 @@ class BaseArgParser(object):
         self.parser.add_argument('--toy', type=util.str_to_bool, default=False, help='Use small dataset or not.')
         self.parser.add_argument('--toy_size', type=int, default=5,
                                  help='How many of each type to include in the toy dataset.')
+        self.parser.add_argument('--scale_by_std', type=util.str_to_bool, default=False,
+                                 help='Normalize by std val, default false')
         self.parser.add_argument('--series', default='sagittal', type=str, choices=('sagittal', 'axial', 'coronal'), 
                                  help='The series to use -- one of (sagittal / axial / coronal')
         self.parser.add_argument('--vstep_size', type=int, default=1, 
                                  help='Number of slices to move forward at a time')
         self.parser.add_argument('--dataset', type=str, required=True,
-                                 choices=('kinetics', 'pe'),
+                                 choices=('kinetics', 'pe','peframe'),
                                  help='Dataset to use.')
         self.parser.add_argument('--deterministic', type=util.str_to_bool, default=False,
                                  help='If true, set a random seed to get deterministic results.')
+            
         self.parser.add_argument('--cudnn_benchmark', type=util.str_to_bool, default=False,
                                  help='Set cudnn benchmark to save fastest computation algorithm for fixed size inputs. \
                                        Turn off when input size is variable.')
@@ -76,6 +82,12 @@ class BaseArgParser(object):
                                  help='If True, perform classification.')
         self.parser.add_argument('--pe_types', type=eval, default='["central", "segmental"]',
                                  help='Types of PE to include.')
+        self.parser.add_argument('--predict_num_slices',type=util.str_to_bool, default=False,
+                                 help='If True, perform regression.')
+        self.parser.add_argument('--window_shift', type=util.str_to_bool, default=False,
+                                 help='True if shift, false oterhwise')
+        self.parser.add_argument('--radfusion_np_path', type=str, required=True,
+                                 help = "path to np files from radfusion")
         self.is_training = None
 
     def parse_args(self):
@@ -130,6 +142,8 @@ class BaseArgParser(object):
             args.dataset = 'KineticsDataset'
         elif args.dataset == 'pe':
             args.dataset = 'CTPEDataset3d'
+        elif args.dataset == 'peframe':
+            args.dataset = 'FrameDataset3d'
 
         if self.is_training and args.use_pretrained:
             if args.model != 'PENet' and args.model != 'PENetClassifier':
@@ -148,7 +162,8 @@ class BaseArgParser(object):
             args.loader = 'window'
             if args.dataset == 'KineticsDataset':
                 args.data_loader = 'KineticsDataLoader'
-
+        elif args.model == 'DinoClassifier' or args.model =='DinoTransformer':
+            args.loader = "window"
         # Set up output dir (test mode only)
         if not self.is_training:
             args.results_dir = os.path.join(args.results_dir, '{}_{}'.format(args.name, date_string))

@@ -21,7 +21,10 @@ class PENetClassifier(nn.Module):
         self.cardinality = cardinality
         self.num_channels = num_channels
         self.num_classes = num_classes
-
+       # print("num channels",self.num_channels)
+       # print("Cardinality",cardinality)
+       # print("In channels", self.in_channels)
+       # print("NumClasses",self.num_classes)
         self.in_conv = nn.Sequential(nn.Conv3d(self.num_channels, self.in_channels, kernel_size=7,
                                                stride=(1, 2, 2), padding=(3, 3, 3), bias=False),
                                      nn.GroupNorm(self.in_channels // 16, self.in_channels),
@@ -75,10 +78,11 @@ class PENetClassifier(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-
+       # print("Beginning", x.size())
         # Expand input (allows pre-training on RGB videos, fine-tuning on Hounsfield Units)
         if x.size(1) < self.num_channels:
             x = x.expand(-1, self.num_channels // x.size(1), -1, -1, -1)
+      #  print("After Expand", x.size())
 
         x = self.in_conv(x)
         x = self.max_pool(x)
@@ -88,9 +92,10 @@ class PENetClassifier(nn.Module):
             x = encoder(x)
 
         # Classifier
+       # print("shape:", x.shape)
         x = self.classifier(x)
 
-        return x
+        return x,x
 
     def args_dict(self):
         """Get a dictionary of args that can be used to reconstruct this architecture.

@@ -530,13 +530,16 @@ def get_plot(title, curve):
     ax.set_ylim([0.0, 1.05])
     ax.set_xlim([0.0, 1.0])
 
+   # Draw the canvas before extracting the pixel buffer
     fig.canvas.draw()
 
-    curve_img = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-    curve_img = curve_img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    # Get RGB image from RGBA buffer
+    rgba = np.asarray(fig.canvas.buffer_rgba())
+    rgb = rgba[..., :3]
 
-    return curve_img
+    plt.close(fig)  # Clean up the figure
 
+    return rgb
 
 def resize(cam, input_img, interpolation='linear'):
     """Resizes a volume using factorized bilinear interpolation"""
