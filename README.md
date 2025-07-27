@@ -1,90 +1,35 @@
-# PENet 
-This repository contains the model (PENet) described in the paper *"PENet: A Scalable Deep-learning model for Automated Diagnosis of Pulmonary Embolism Using Volumetric CT Scan"* published on Nature Digital Medicine. [manuscript link](https://rdcu.be/b3Lll) 
+# A Two-Stage Chunk Aggregation Framework for Pulmonary Embolism Detection from CTPA Scans and Electronic Health Records
+This respository contains the model and checkpoints described in the paper: A Two-Stage Chunk Aggregation Framework for Pulmonary Embolism Detection from CTPA Scans and Electronic Health Records 
 
-![](./img/grad_cam.gif)
+## Abstract:
+Pulmonary embolism (PE) is a life-threatening condition with a high mortality rate of 30%. Immediate treatment is crucial to improve treatment outcomes, but PE diagnosis often takes multiple days due to the limited availability of radiologists to analyze computed tomography pulmonary angiography (CTPA) images, which involves taking multiple X-ray images (often 100s of slices) of the chest region. Therefore, automation of diagnosis of PE can significantly improve patient outcomes. We use the RadFusion dataset to improve upon prior work to diagnose PE using the CTPA scans as well as using electronic health records. The labeling method and pre-processing of EHR data was improved, with over 50% of the features being identified as redundant. Correlation based analysis was done to select key EHR features, drastically reducing the number of features needed. A novel two stage pipeline was developed for analyzing CTPE images. This approach consists of a model to analyze a window of contiguous CTPE slices (Chunks), followed by another model to aggregate information across multiple chunks.  Proposed improvements to the sampling of chunks further boosted accuracy with the two stage pipeline for the images resulting in a 3% improvement in AUROC (0.95 compared to 0.92 for the PeNet model) with 1.8% improvement due to using a pre-trained DinoV2 small backbone, compared to a custom architecture and an additional 1.2% from improvements in aggregating information across chunks and improved sampling. Distilling the metadata features to just the top 16 most important features and using a random forest classifier resulted in the highest AUROC of 0.79 compared to the 0.76 when using all the metadata features. The analysis supports the results from larger datasets such as INSPECT and bridge the gap in prior work (RadFusion) which indicated that EHR data was more accurate than PE data.  We also demonstrate that modern self-supervised backbones trained on web scale data offer superior performance, reducing the need for custom architectures. This research also shows that very few EHR features contribute to accuracy, reducing the need for collection of large amounts of EHR data. The current approach isn't end-to-end trainable and separates chunk-level and patient-level models; in the future, we aim to explore unified models and more complex backbones.
 
-## Table of Contents
-0. [Introduction](#introduction)
-0. [Citation](#citation)
-0. [Results](#results)
-0. [Usage](#usage)
+Results of the S-PET Model
 
-## Introduction
+<img width="598" height="131" alt="image" src="https://github.com/user-attachments/assets/13c54648-4726-455f-96a7-c958c1ab45a9" />
 
-Pulmonary Embolism (PE) is responsible for 180,000 deaths per year in the US alone. The gold standard diagnostic modality for PE is computed tomography pulmonary angiography (CTPA) which is interpreted by radiologists. Studies have shown that prompt diagnosis and treatment can greatly reduce morbidity and mortality, yet PE remains among the diagnoses most frequently missed or delayed due to lack of radiologist availability and physician fatigue. Therefore, there is an urgency in automating accurate interpretation and timely reporting of CTPA examinations to the immediate attention of physicians. 
+## Usage 
 
-To address this issue, we have developed an end-to-end deep learning model, PENet, capable of detecting PE. Some notable implementation details of PENet include: 
-- Pretraining the model with a video dataset (Kinetics-600) for transfer learning
-- Using a sliding window of CT slices as inputs to increase the proportion of the target PE relative to the input. 
+### Download trained weights
 
-Our model also highlights regions in the original CT scans that contributed most to the model’s prediction using Class Activation Maps, which can potentially help draw Radiologists’ attention to the most relevant parts of the CT scans for more efficient and accurate diagnosis [See Example](https://www.youtube.com/watch?v=ZdOabYt4Cjo). 
+The checkpoints and weights for SPET are https://github.com/Anisha234/ASSIP_research_penet/blob/master/sequence_model/best_model.pth respectively. 
 
-For more information please see the full manuscript at this [link](https://rdcu.be/b3Lll).
+### Training and Testing PET
+To train the PET model, run train_dino_transformer.bat. To test this model, run test.bat after specifiying the right checkpoint. 
 
-## Citation
 
-If you use these PENet in your research, please cite:
+### Training SPET
+To train the SPET model do the following:
+1) Run test.bat with --window_shift = True and phase = train, phase = val, and phase = test to generate three sets of embeddings.
+2) Repeat 1) with --window_shift = False.
+3) Run sequence_train_model to train the model.
+To test the SPET model, simply run test_sequence_model with the correct checkpoint. 
 
-	@article{huang2020penet,
-            title={PENet—a scalable deep-learning model for automated diagnosis of pulmonary embolism using volumetric CT imaging},
-            author={Huang, Shih-Cheng and Kothari, Tanay and Banerjee, Imon and Chute, Chris and Ball, Robyn L and Borus, Norah and Huang, Andrew and Patel, Bhavik N and Rajpurkar, Pranav and Irvin, Jeremy and others},
-            journal={npj Digital Medicine},
-            volume={3},
-            number={1},
-            pages={1--9},
-            year={2020},
-            publisher={Nature Publishing Group}
-        }
 
-## Results
-|                                    | Internal dataset: Stanford | External dataset: Intermountain |
-|------------------------------------|----------------------------|---------------------------------|
-| Metric (AUROC) [95% CI]            |                            |                                 |
-| PENet kinetics pretrained          |      0.84 [0.82–0.87]      |         0.85 [0.81–0.88]        |
-| PENet no pretraining               |      0.69 [0.74–0.65]      |         0.62 [0.57–0.88]        |
-| ResNet3D-50 kinetics pretrained    |      0.78 [0.74–0.81]      |         0.77 [0.74–0.80]        |
-| ResNeXt3D-101 kinetics pretrained  |      0.80 [0.77–0.82]      |         0.83 [0.81–0.85]        |
-| DenseNet3D-121 kinetics pretrained |      0.69 [0.64–0.73]      |         0.67 [0.63–0.71]        |
 
-Our results demonstrate robust and interpretable diagnosis including sustained cross-institutional AUROC performance on an external dataset. PENet also outperforms the current state-of-the-art 3D CNN models by a wide margin. Thus, this work supports that successful application of deep learning to the diagnosis of a difficult radiologic finding such as PE on volumetric imaging in CTPA is possible, and can generalize on data from an external institution despite that the external institution. Ultimately, clinical integration may aid in prioritizing positive studies by sorting CTPA studies for timely diagnosis of this important disease including in settings where radiological expertise is limited.
-
-## Usage
-
-#### Environment Setup 
-1. Please install [Anaconda](https://docs.conda.io/en/latest/miniconda.html) in order to create a Python environment.
-2. Clone this repo (from the command-line: `git clone git@github.com:marshuang80/PENet.git`).
-3. Create the environment: `conda env create -f environment.yml`.
-4. Activate the environment: `source activate ctpe`.
-
-#### Download trained weights
-
-The checkpoints and weights for PENet are stored [here](https://stanfordmedicine.box.com/s/uql0ikebseltkkntiwl5rrn6zzuww6jt). 
-
-#### Training
-
-##### Download the data
-Go to [Stanford Medicine Box](https://stanfordmedicine.app.box.com/s/q6lm1iwauyspyuicq4rlz35bqsnrwle0) and unzip all data `.npy` into the same directory.
-
-Move `series_list.pkl` to the same directory as the data.
-
-##### Preprocessing the data
+## Preprocessing the data
 Change the input and output path of `/scripts/create_pe_hdf5_update.py` and run the script to generate dataset in hdf5 format for loading efficiency. This will create a `data.hdf5` file and put it under the same directory as the data.
 
-##### Download pretrained weights of Kinetics-600
-The checkpoints and weights for PENet pretrained on Kinetics-600 are stored [Stanford Medicine Box](https://stanfordmedicine.box.com/s/gfwy1431vkf2heekipmogwd737741lvz).
+## Acknowledgements
+This repository is built of the PE-Net codebase. For more information, refer to https://github.com/marshuang80/penet/tree/master. 
 
-##### Training
-
-To re-train the model, please modify **dir_dir**, **ckpt_path** and **save_dir** in `train.sh` and run `sh train.sh`
-
-#### Testing
-
-To test the model, please modify **dir_dir**, **ckpt_path** and **results_dir** in `test.sh` and run `sh test.sh`
-
-#### Generate CAMs
-
-The script to generate CAMs using trained model is `get_cams.sh`. Please modify **dir_dir**, **ckpt_path** and **cam_dir**
-
-#### Testing on raw DICOM
-
-To predict probability of PE for a single study using raw DICOM files, please use `test_from_dicom.sh`. Remember to modify the relavent arguments.  
