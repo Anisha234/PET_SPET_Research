@@ -12,7 +12,7 @@ Results of the S-PET Model
 
 ### Download trained weights
 
-The checkpoints and weights for SPET are https://github.com/Anisha234/ASSIP_research_penet/blob/master/sequence_model/best_model.pth respectively. 
+The checkpoints and weights for PET and SPET are https://drive.google.com/file/d/19wYvP9bFTWfrOWj09sFUX-QSMs02j8NI/view?usp=sharing and https://github.com/Anisha234/ASSIP_research_penet/blob/master/sequence_model/best_model.pth respectively. 
 
 ### Training and Testing PET
 To train the PET model, run train_dino_transformer.bat. To test this model, run test.bat after specifiying the right checkpoint. 
